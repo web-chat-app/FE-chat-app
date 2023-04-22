@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import clsx from "clsx";
 import { Message, Mode } from "../App";
 import { socket } from "../socket";
@@ -12,9 +12,16 @@ type ChatProps = {
 const Chat = (props: ChatProps) => {
   const { onlineMember } = props;
   const nickname = localStorage.getItem("nickname")!;
+  const containerRef = useRef<HTMLUListElement | null>(null);
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [chatMessage, setChatMessage] = useState<string>("");
+
+  const scrollToBottom = () => {
+    if (containerRef.current) {
+      containerRef.current.scrollTop = containerRef.current.scrollHeight;
+    }
+  };
 
   const handleSendMessage = () => {
     const message: Message = {
@@ -29,7 +36,14 @@ const Chat = (props: ChatProps) => {
     setChatMessage("");
   };
 
+  const KeyDownListener = (e: KeyboardEvent) => {
+    if (e.key === "Enter" && chatMessage) {
+      handleSendMessage();
+    }
+  };
+
   useEffect(() => {
+    scrollToBottom();
     socket.on("emit-messages", (message: Message) => {
       setMessages((prev) => [...prev, message]);
     });
@@ -38,6 +52,18 @@ const Chat = (props: ChatProps) => {
       socket.off("emit-messages");
     };
   }, [messages]);
+
+  useEffect(() => {
+    document.addEventListener("keydown", KeyDownListener);
+
+    return () => {
+      document.removeEventListener("keydown", KeyDownListener);
+    };
+  }, [chatMessage]);
+
+  useEffect(() => {
+    document.getElementById("message-input")?.focus();
+  }, []);
 
   return (
     <>
@@ -51,7 +77,10 @@ const Chat = (props: ChatProps) => {
         </span>
       </h1>
       <div className="bg-slate-200 flex flex-col justify-between h-full w-full max-h-[70vh] max-w-lg rounded-md p-3">
-        <ul className="display flex flex-col gap-2 max-h-[60vh] overflow-scroll">
+        <ul
+          ref={containerRef}
+          className="display flex flex-col gap-2 max-h-[60vh] overflow-scroll"
+        >
           {messages.map((message, i) => {
             const isSender = socket.id === message.id;
 
@@ -79,6 +108,7 @@ const Chat = (props: ChatProps) => {
         </ul>
         <div className="flex gap-2">
           <input
+            id="message-input"
             className="w-full h-10 p-2 rounded-md"
             value={chatMessage}
             onChange={(e) => setChatMessage(e.target.value || "")}
